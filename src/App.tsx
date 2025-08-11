@@ -4,6 +4,7 @@ import { getApiUrl } from './utils/apiConfig'
 import LinksTab from './components/LinksTab'
 import CashbackTab from './components/CashbackTab'
 import GuideTab from './components/GuideTab'
+import OnboardingScreen from './components/OnboardingScreen'
 import './App.css'
 
 interface TossUser {
@@ -107,6 +108,8 @@ function App() {
   const [groupPurchases, setGroupPurchases] = useState<GroupPurchase[]>([])
   const [profileData, setProfileData] = useState<ProfileResponse | null>(null)
   const [activeTab, setActiveTab] = useState<'links' | 'cashback' | 'guide'>('links')
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(false)
+  const [isLoading, setIsLoading] = useState<boolean>(true)
 
   const getProfile = async (token: string) => {
     try {
@@ -243,6 +246,7 @@ function App() {
   const handleLogin = useCallback(async () => {
     try {
       console.log('로그인 시작')
+      setIsLoading(true)
       
       /**
        * appLogin을 호출하면
@@ -257,6 +261,10 @@ function App() {
       // 토스 API 서버에서 login-me 요청 (access token + 사용자 정보)
       await getLoginMe(authorizationCode, referrer)
       
+      // 온보딩 완료 표시
+      localStorage.setItem('rewardpang-onboarding-completed', 'true')
+      setShowOnboarding(false)
+      
     } catch (error) {
       console.error('로그인 실패:', error)
       console.error('에러 타입:', typeof error)
@@ -265,12 +273,28 @@ function App() {
       alert('로그인에 실패했습니다. 다시 시도해주세요.')
     } finally {
       console.log('로그인 프로세스 완료')
+      setIsLoading(false)
     }
   }, [])
 
-  // 페이지 로드 시 자동으로 로그인 실행
+  // 페이지 로드 시 온보딩 체크 및 로그인 실행
   useEffect(() => {
-    handleLogin()
+    // TODO: 임시로 온보딩 항상 표시 (테스트용)
+    // 나중에 되돌리려면 아래 주석을 해제하고 위의 임시 코드를 주석 처리하면 됩니다
+    setShowOnboarding(true)
+    setIsLoading(false)
+    
+    // 원래 코드 (나중에 되돌릴 때 사용):
+    // const onboardingCompleted = localStorage.getItem('rewardpang-onboarding-completed')
+    // 
+    // if (onboardingCompleted === 'true') {
+    //   // 온보딩을 이미 본 경우 자동 로그인
+    //   handleLogin()
+    // } else {
+    //   // 온보딩을 처음 보는 경우 온보딩 화면 표시
+    //   setShowOnboarding(true)
+    //   setIsLoading(false)
+    // }
   }, [handleLogin])
 
   // 총 리워드 계산
@@ -285,7 +309,14 @@ function App() {
 
   return (
     <div className="app">
-      {loginMeResponse && (
+      {showOnboarding ? (
+        <OnboardingScreen onLogin={handleLogin} />
+      ) : isLoading ? (
+        <div className="loading-screen">
+          <div className="loading-spinner"></div>
+          <p>로그인 중...</p>
+        </div>
+      ) : loginMeResponse ? (
         <div className="user-summary">
           {/* 총 리워드 표시 */}
           <div style={{ padding: '0 16px' }}>
@@ -326,7 +357,7 @@ function App() {
             {activeTab === 'guide' && <GuideTab />}
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

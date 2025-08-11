@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 
 interface CoupangLink {
   id: string
@@ -16,6 +16,23 @@ interface LinksTabProps {
 }
 
 const LinksTab: React.FC<LinksTabProps> = ({ profileData }) => {
+  const [showPopup, setShowPopup] = useState(false)
+  const [pendingVideoUrl, setPendingVideoUrl] = useState<string>('')
+
+  // 팝업 닫기 함수
+  const closePopup = () => {
+    setShowPopup(false)
+    setPendingVideoUrl('')
+  }
+
+  // 팝업 확인 후 유튜브 열기 함수
+  const confirmAndOpenYouTube = () => {
+    if (pendingVideoUrl) {
+      openYouTube(pendingVideoUrl)
+    }
+    closePopup()
+  }
+
   // 유튜브 앱을 열거나 웹으로 이동하는 함수
   const openYouTube = (videoUrl: string) => {
     // 유튜브 비디오 ID 추출
@@ -64,47 +81,102 @@ const LinksTab: React.FC<LinksTabProps> = ({ profileData }) => {
     return null
   }
 
+  // 링크 복사 함수
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      alert('링크가 복사되었습니다!')
+    } catch (err) {
+      console.error('복사 실패:', err)
+      alert('복사에 실패했습니다.')
+    }
+  }
+
   return (
     <div className="tab-panel">
-      <div className="section">
-        <div className="section-title">내 영상 링크</div>
-        <div className="section-desc">이 링크로 쿠팡에서 구매하셔야 캐시백이 지급돼요</div>
-        {profileData?.coupangLink ? (
-          <div className="card link-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div 
-              className="card-text" 
-              style={{ flex: 1, marginRight: '12px', wordBreak: 'break-all', cursor: 'pointer', color: '#007bff', textDecoration: 'underline' }}
-              onClick={() => profileData?.coupangLink?.link_url && openYouTube(profileData.coupangLink.link_url)}
-            >
-              {profileData.coupangLink.link_url}
+      {/* 팝업 */}
+      {showPopup && (
+        <div className="popup-overlay" onClick={closePopup}>
+          <div className="popup-content" onClick={(e) => e.stopPropagation()}>
+            <div className="popup-title">유튜브 영상이 나오면, 연결된 제품을 클릭해서 쿠팡으로 가주세요!</div>
+            <div className="popup-desc">해당 제품을 구매하지 않으셔도, 쿠팡의 모든 상품에 대해 캐시백이 적립됩니다.</div>
+            <div className="popup-buttons">
+              <button className="btn primary" onClick={confirmAndOpenYouTube}>확인</button>
             </div>
-            <button className="primary-btn" style={{ flexShrink: 0, backgroundColor: '#ffffff', borderColor: '#6c757d', color: '#6c757d' }}>복사</button>
+          </div>
+        </div>
+      )}
+      {/* 섹션 1: 내 수익 링크 */}
+      <div className="section">
+        <div className="section-title">내 수익 링크</div>
+        <div className="section-desc">내 링크 → 영상 속 상품 클릭 → 쿠팡에서 결제 → 캐시백 적립!</div>
+
+        {profileData?.coupangLink ? (
+          <div className="card">
+            <div className="url">{profileData.coupangLink.link_url}</div>
+            <div className="btn-group">
+              <button 
+                className="btn primary" 
+                onClick={() => {
+                  if (profileData?.coupangLink?.link_url) {
+                    setPendingVideoUrl(profileData.coupangLink.link_url)
+                    setShowPopup(true)
+                  }
+                }}
+              >
+                바로 가기
+              </button>
+              <button 
+                className="btn neutral" 
+                onClick={() => profileData?.coupangLink?.link_url && copyToClipboard(profileData.coupangLink.link_url)}
+              >
+                복사하기
+              </button>
+            </div>
           </div>
         ) : (
-          <div className="card link-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div className="card-text" style={{ flex: 1, marginRight: '12px' }}>등록된 링크가 없습니다</div>
-            <button className="primary-btn" style={{ flexShrink: 0 }}>등록</button>
+          <div className="card">
+            <div className="url">등록된 링크가 없습니다</div>
+            <div className="btn-group">
+              <button className="btn primary">등록하기</button>
+            </div>
           </div>
         )}
-        <div className="info-box" style={{ width: '100%' }}>링크를 친구와 공유할 수 있어요</div>
       </div>
 
-      <div className="section">
-        <div className="section-title" style={{ fontSize: '18px', fontWeight: 'bold' }}>캐시백 받는 방법</div>
-        <ul className="step-list" style={{ textAlign: 'left', listStyle: 'none', paddingLeft: 0 }}>
-          <li>
-            <span 
-              style={{ cursor: 'pointer', color: '#007bff', textDecoration: 'underline' }}
-              onClick={() => profileData?.coupangLink?.link_url && openYouTube(profileData.coupangLink.link_url)}
-            >
-              내 영상 보러가기
-            </span>
-            클릭해서 유튜브로 이동
-          </li>
-          <li>유튜브 영상에서 쿠팡 상품 클릭하기</li>
-          <li>쿠팡 접속해서 아무 상품이나 구매</li>
-          <li>토스 포인트로 캐시백 적립</li>
-        </ul>
+      {/* 섹션 2: 캐시백 받는 방법 */}
+      <div className="section" style={{ textAlign: 'left' }}>
+        <div className="section-title">캐시백 받는 방법</div>
+        <div className="steps">
+          <div className="step">
+            <div className="badge">1</div>
+            <div className="step-text">
+              <div className="step-title">내 수익 링크 '바로 가기' 클릭</div>
+              <div className="step-desc">리워드팡에서 내 링크로 유튜브 쇼츠 영상에 들어가요.</div>
+            </div>
+          </div>
+          <div className="step">
+            <div className="badge">2</div>
+            <div className="step-text">
+              <div className="step-title">영상 속 상품 버튼 누르기</div>
+              <div className="step-desc">쇼츠 화면 안의 쿠팡 상품 버튼을 눌러 쿠팡으로 이동해요.</div>
+            </div>
+          </div>
+          <div className="step">
+            <div className="badge">3</div>
+            <div className="step-text">
+              <div className="step-title">쿠팡에서 원하는 상품 결제</div>
+              <div className="step-desc">영상 속 상품뿐 아니라 어떤 상품이든 구매하면 돼요.</div>
+            </div>
+          </div>
+          <div className="step">
+            <div className="badge">4</div>
+            <div className="step-text">
+              <div className="step-title">자동으로 캐시백 적립</div>
+              <div className="step-desc">결제 금액의 최대 3%가 자동으로 적립돼요.</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

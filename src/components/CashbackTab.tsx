@@ -1,4 +1,5 @@
-import React from 'react'
+import React, { useState } from 'react'
+import SettlementScreen from './SettlementScreen'
 
 interface GroupPurchase {
   id: string
@@ -25,6 +26,8 @@ interface CashbackTabProps {
 }
 
 const CashbackTab: React.FC<CashbackTabProps> = ({ cashbackData, groupPurchases }) => {
+  const [showSettlement, setShowSettlement] = useState(false)
+  
   // groupPurchases가 undefined이거나 빈 배열일 때 처리
   const safeGroupPurchases = groupPurchases || []
   
@@ -74,43 +77,58 @@ const CashbackTab: React.FC<CashbackTabProps> = ({ cashbackData, groupPurchases 
   console.log('CashbackTab - sortedMonths:', sortedMonths)
 
   return (
-    <div className="tab-panel">
-      {/* 상단 요약 카드 */}
-      <div className="card cashback-card">
-        <div className="card-title">캐시백 요약</div>
-        <div className="card-item">
-          <div className="card-label">누적 캐시백</div>
-          <div className="card-value">{cashbackData.totalCashback.toLocaleString()}원</div>
-        </div>
-        <div className="card-item">
-          <div className="card-label">지급된 캐시백</div>
-          <div className="card-value">{cashbackData.paidCashback.toLocaleString()}원</div>
-        </div>
-      </div>
-
-      {/* 월별 적립 내역 */}
-      {sortedMonths.map((monthData) => (
-        <div key={monthData.month} className="month-section">
-          <div className="month-title">
-            {monthData.month} (총 {monthData.totalReward.toLocaleString()}원)
+    <>
+      {showSettlement ? (
+        <SettlementScreen 
+          cashbackData={cashbackData}
+          onClose={() => setShowSettlement(false)}
+        />
+      ) : (
+        <div className="tab-panel">
+          {/* 상단 요약 카드 */}
+          <div className="card cashback-card">
+            <div className="card-title">캐시백 요약</div>
+            <div className="card-item">
+              <div className="card-label">누적 캐시백</div>
+              <div className="card-value">{cashbackData.totalCashback.toLocaleString()}원</div>
+            </div>
+            <div className="card-item">
+              <div className="card-label">지급된 캐시백</div>
+              <div className="card-value">{cashbackData.paidCashback.toLocaleString()}원</div>
+            </div>
+            <button 
+              className="settlement-button"
+              onClick={() => setShowSettlement(true)}
+            >
+              정산 신청하기
+            </button>
           </div>
-          <div className="transaction-list">
-            {monthData.purchases.map((purchase) => {
-              return (
-                <div key={purchase.id} className="transaction-item">
-                  {/* <div className="transaction-date">{formattedDate}</div> */}
-                  <div className="transaction-name">{maskProductName(purchase.product_name)}</div>
-                  <div className="transaction-details">
-                    결제액: {purchase.purchase_amount.toLocaleString()}원 | 캐시백: {purchase.reward_amount.toLocaleString()}원
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      ))}
 
-    </div>
+          {/* 월별 적립 내역 */}
+          {sortedMonths.map((monthData) => (
+            <div key={monthData.month} className="month-section">
+              <div className="month-title">
+                {monthData.month} (총 {monthData.totalReward.toLocaleString()}원)
+              </div>
+              <div className="transaction-list">
+                {monthData.purchases.map((purchase) => {
+                  return (
+                    <div key={purchase.id} className="transaction-item">
+                      {/* <div className="transaction-date">{formattedDate}</div> */}
+                      <div className="transaction-name">{maskProductName(purchase.product_name)}</div>
+                      <div className="transaction-details">
+                        결제액: {purchase.purchase_amount.toLocaleString()}원 | 캐시백: {purchase.reward_amount.toLocaleString()}원
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+
+        </div>
+      )}
+    </>
   )
 }
 
