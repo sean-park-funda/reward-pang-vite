@@ -25,8 +25,8 @@ export const getApiBaseUrl = (): string => {
   // console.log('프로덕션 환경 감지, API URL 사용:', productionUrl)
   // return productionUrl
 
-  // return 'http://localhost:8080'
-  return 'https://api.rewardpang.com'
+  return 'http://localhost:8080'
+  // return 'https://api.rewardpang.com'
 }
 
 /**

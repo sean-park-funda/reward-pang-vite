@@ -57,6 +57,7 @@ interface GroupPurchase {
   purchase_amount: number
   reward_amount: number
   purchase_date: string
+  exact_purchase_date: boolean
   status: string
   created_at: string
   buyer: string | null | { id: string; phone: string; isMe: boolean }
@@ -103,15 +104,37 @@ interface ProfileResponse {
   coupangLink: CoupangLink | null
 }
 
+interface Settlement {
+  id: string
+  user_id: string
+  user_group_id: string
+  amount: number
+  bank_account_number: string
+  settlement_amount: number
+  status: 'pending' | 'completed' | 'rejected'
+  application_date: string
+  settlement_date: string | null
+  created_at: string
+  updated_at: string
+}
+
+interface SettlementsResponse {
+  success: boolean
+  data: {
+    settlements: Settlement[]
+  }
+}
+
 function App() {
   const [loginMeResponse, setLoginMeResponse] = useState<LoginMeResponse | null>(null)
   const [groupPurchases, setGroupPurchases] = useState<GroupPurchase[]>([])
   const [profileData, setProfileData] = useState<ProfileResponse | null>(null)
+  const [settlements, setSettlements] = useState<Settlement[]>([])
   const [activeTab, setActiveTab] = useState<'links' | 'cashback' | 'guide'>('links')
   const [showOnboarding, setShowOnboarding] = useState<boolean>(false)
   const [isLoading, setIsLoading] = useState<boolean>(true)
 
-  const getProfile = async (token: string) => {
+  const getProfile = useCallback(async (token: string) => {
     try {
       console.log('프로필 정보 요청 중...')
       
@@ -145,9 +168,9 @@ function App() {
       console.error('에러 메시지:', error instanceof Error ? error.message : String(error))
       alert(`프로필 정보 획득에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }
+  }, [])
 
-  const getGroupPurchases = async (token: string) => {
+  const getGroupPurchases = useCallback(async (token: string) => {
     try {
       console.log('그룹 구매 정보 요청 중...')
       console.log('사용된 토큰:', token)
@@ -191,9 +214,47 @@ function App() {
       console.error('에러 메시지:', error instanceof Error ? error.message : String(error))
       alert(`그룹 구매 정보 획득에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }
+  }, [])
 
-  const getLoginMe = async (authorizationCode: string, referrer: string) => {
+  const getSettlements = useCallback(async (token: string) => {
+    try {
+      console.log('정산 기록 요청 중...')
+      
+      const response = await fetch(getApiUrl('/api/settlements/my-settlements'), {
+        method: 'GET',
+        mode: 'cors',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data: SettlementsResponse = await response.json()
+      console.log('정산 기록 응답:', data)
+      
+      if (data.success && data.data.settlements) {
+        setSettlements(data.data.settlements)
+        console.log('정산 기록 획득 성공!')
+        console.log('설정된 settlements:', data.data.settlements)
+      } else {
+        console.error('정산 기록 API 응답이 올바르지 않음:', data)
+        throw new Error('정산 기록 응답이 올바르지 않습니다.')
+      }
+      
+    } catch (error) {
+      console.error('정산 기록 요청 실패:', error)
+      console.error('에러 타입:', typeof error)
+      console.error('에러 이름:', error instanceof Error ? error.name : 'Unknown')
+      console.error('에러 메시지:', error instanceof Error ? error.message : String(error))
+      alert(`정산 기록 획득에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }, [])
+
+  const getLoginMe = useCallback(async (authorizationCode: string, referrer: string) => {
     try {
       console.log('토스 API 서버에 login-me 요청 중...')
       
@@ -223,11 +284,12 @@ function App() {
         console.log('리워드팡 유저:', data.rewardpang_user)
         console.log('세션:', data.rewardpang_session)
         
-        // access_token이 있으면 그룹 구매 정보와 프로필 정보 요청
+        // access_token이 있으면 그룹 구매 정보, 프로필 정보, 정산 기록 요청
         if (data.rewardpang_session?.access_token) {
           await Promise.all([
             getGroupPurchases(data.rewardpang_session.access_token),
-            getProfile(data.rewardpang_session.access_token)
+            getProfile(data.rewardpang_session.access_token),
+            getSettlements(data.rewardpang_session.access_token)
           ])
         }
       } else {
@@ -241,12 +303,13 @@ function App() {
       console.error('에러 메시지:', error instanceof Error ? error.message : String(error))
       alert(`로그인에 실패했습니다: ${error instanceof Error ? error.message : String(error)}`)
     }
-  }
+  }, [getGroupPurchases, getProfile, getSettlements])
 
   const handleLogin = useCallback(async () => {
     try {
       console.log('로그인 시작')
       setIsLoading(true)
+      setShowOnboarding(false) // 온보딩 화면을 즉시 숨기고 로딩 화면 표시
       
       /**
        * appLogin을 호출하면
@@ -258,12 +321,14 @@ function App() {
       
       console.log('appLogin 성공!', { authorizationCode, referrer })
       
+      // 토스 로그인 완료 후 데이터 로딩 시작
+      console.log('데이터 로딩 시작...')
+      
       // 토스 API 서버에서 login-me 요청 (access token + 사용자 정보)
       await getLoginMe(authorizationCode, referrer)
       
       // 온보딩 완료 표시
       localStorage.setItem('rewardpang-onboarding-completed', 'true')
-      setShowOnboarding(false)
       
     } catch (error) {
       console.error('로그인 실패:', error)
@@ -271,11 +336,13 @@ function App() {
       console.error('에러 이름:', error instanceof Error ? error.name : 'Unknown')
       console.error('에러 스택:', error instanceof Error ? error.stack : 'No stack trace')
       alert('로그인에 실패했습니다. 다시 시도해주세요.')
+      // 에러 발생 시 온보딩 화면으로 돌아가기
+      setShowOnboarding(true)
     } finally {
       console.log('로그인 프로세스 완료')
       setIsLoading(false)
     }
-  }, [])
+  }, [getLoginMe])
 
   // 페이지 로드 시 온보딩 체크 및 로그인 실행
   useEffect(() => {
@@ -300,11 +367,17 @@ function App() {
   // 총 리워드 계산
   const totalReward = groupPurchases.reduce((total, purchase) => total + purchase.reward_amount, 0)
 
+  // 지급된 캐시백 계산 (status가 'completed'인 정산의 settlement_amount 합계)
+  const paidCashback = settlements
+    .filter(settlement => settlement.status === 'completed')
+    .reduce((total, settlement) => total + settlement.settlement_amount, 0)
+
   // 캐시백 관련 데이터 (실제 데이터 사용)
   const cashbackData = {
     totalCashback: totalReward, // 실제 총 리워드 사용
-    paidCashback: 0, // 지급된 캐시백 (나중에 API에서 받아올 예정)
-    nextPaymentDate: '2024-02-15'
+    paidCashback: paidCashback, // 실제 지급된 캐시백
+    confirmedCashback: 0, // TODO: 확정 캐시백 계산 로직 추가 예정
+    nextPaymentDate: '2024-02-15' // TODO: API에서 받아올 예정
   }
 
   return (
@@ -313,8 +386,16 @@ function App() {
         <OnboardingScreen onLogin={handleLogin} />
       ) : isLoading ? (
         <div className="loading-screen">
-          <div className="loading-spinner"></div>
-          <p>로그인 중...</p>
+          <div className="loading-content">
+            <div className="loading-spinner"></div>
+            <h2>리워드팡</h2>
+            <p>데이터를 불러오는 중...</p>
+            <div className="loading-steps">
+              <div className="step">사용자 정보 확인 중...</div>
+              <div className="step">캐시백 데이터 로딩 중...</div>
+              <div className="step">정산 기록 확인 중...</div>
+            </div>
+          </div>
         </div>
       ) : loginMeResponse ? (
         <div className="user-summary">
@@ -353,7 +434,20 @@ function App() {
           {/* 탭 컨텐츠 */}
           <div className="tab-content">
             {activeTab === 'links' && <LinksTab profileData={profileData} />}
-            {activeTab === 'cashback' && <CashbackTab cashbackData={cashbackData} groupPurchases={groupPurchases} />}
+            {activeTab === 'cashback' && (
+              <CashbackTab 
+                cashbackData={cashbackData} 
+                groupPurchases={groupPurchases} 
+                settlements={settlements} 
+                bankAccount={profileData?.bankAccount || null}
+                userGroupId={loginMeResponse?.rewardpang_user?.group_id || ''}
+                accessToken={loginMeResponse?.rewardpang_session?.access_token || ''}
+                onSettlementCreated={(settlement) => {
+                  // 새 정산이 생성되면 settlements 배열에 추가
+                  setSettlements(prev => [settlement, ...prev])
+                }}
+              />
+            )}
             {activeTab === 'guide' && <GuideTab />}
           </div>
         </div>
